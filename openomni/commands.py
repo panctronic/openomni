@@ -9,8 +9,9 @@ class _BaseCommand(object):
     # The command ID this class handles
     COMMAND_ID = None
 
-    def __init__(self, data, command_id=None):
+    def __init__(self, data, command_id=None, command_length=None):
         self.command_id = command_id
+        self.command_length = command_length
         self.data = data
         try:
             self.Populate()
@@ -69,18 +70,56 @@ class PodStatusResponse(_BaseCommand):
     COMMAND_ID = 0x1d
 
     def Populate(self):
-        self.minutes_active = ((ord(self.data[5]) & 0x0f) << 6) + (ord(self.data[6]) >> 2)
+        try:
+            self.minutes_active = ((ord(self.data[5]) & 0x0f) << 6) + (ord(self.data[6]) >> 2)
+        except:
+            pass
 
     def debug_detail(self):
-        return 'active_time=%s' % (datetime.timedelta(minutes=self.minutes_active))
+        if hasattr(self, 'minutes_active'):
+            return 'active_time=%s' % (datetime.timedelta(minutes=self.minutes_active))
 
+class CancelCommand(_BaseCommand):
+    """Handle cancel command variants."""
+    
+    COMMAND_ID = 0x1f
+
+
+class Message01Response(_BaseCommand):
+
+    COMMAND_ID = 0x01
+    
+    def Populate(self):
+        print len(self.data)
+        print self.data.encode('hex')
+        if self.command_length == 0x1b:
+            self.hardcode_bytes = self.data[:14].encode('hex')
+            self.state_byte = self.data[14].encode('hex')
+            self.lot = self.data[15:19].encode('hex')
+            self.tid = self.data[19:23].encode('hex')
+            self.pod_address = self.data[23:27].encode('hex')
+        elif self.command_length == 0x15:
+            self.hardcode_bytes = self.data[:7].encode('hex')
+            self.state_byte = self.data[8].encode('hex')
+            self.lot = self.data[9:13].encode('hex')
+            self.tid = self.data[13:17].encode('hex')
+            self.rssi = self.data[18].encode('hex')
+            self.pod_address = self.data[19:22].encode('hex')
+    
+    def debug_detail(self):
+        if self.command_length == 0x1b:
+            return ('length=0x1b,hardcode_bytes=%s,state_byte=%s,lot=%s,tid=%s,pod_address=%s'
+                    % (self.hardcode_bytes, self.state_byte, self.lot, self.tid, self.pod_address))
+        if self.command_length == 0x15:
+            return ('length=0x15,hardcode_bytes=%s,state_byte=%s,lot=%s,tid=%s,rssi=%s,pod_address=%s'
+                    % (self.hardcode_bytes, self.state_byte, self.lot, self.tid, self.rssi, self.pod_address))
 
 # Build a dictionary of command IDs (eg 0x1a for InsulinScheduleCommand) to the
 # class that implements their parsing
 COMMAND_TYPES = {}
 for cls in globals().values():
     if type(cls) == type and issubclass(cls, _BaseCommand) and cls.COMMAND_ID is not None:
-	if cls.COMMAND_ID in COMMAND_TYPES:
-	    raise Exception('%s is handled by more than one class! %s and %s'
-			    % (cls.COMMAND_ID, cls, COMMAND_TYPES[command_id]))
-	COMMAND_TYPES[cls.COMMAND_ID] = cls
+    	if cls.COMMAND_ID in COMMAND_TYPES:
+        	raise Exception('%s is handled by more than one class! %s and %s'
+        	        % (cls.COMMAND_ID, cls, COMMAND_TYPES[command_id]))
+    	COMMAND_TYPES[cls.COMMAND_ID] = cls

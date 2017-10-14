@@ -35,6 +35,7 @@ class Packet(object):
     MAX_CON_BODY_SEGMENT_LEN = 30
 
     def __init__(self, data=""):
+        self.data = data
         self.received_at = None
         self.packet_type = None
         self.body = None
@@ -70,9 +71,16 @@ class Packet(object):
             self.body = data[5:-1]
             self.crc = ord(data[-1])
 
-    @staticmethod
-    def from_hex(hex_str):
-        return Packet(hex_str.decode("hex"))
+    @classmethod
+    def from_hex(cls, hex_str):
+        return cls(hex_str.decode("hex"))
+
+    @classmethod
+    def from_string(cls, raw_string):
+        c = cls()
+        c.assign_from_string(raw_string)
+        c.data = c.tx_data()
+        return c
 
     @staticmethod
     def flip_bytes(data):

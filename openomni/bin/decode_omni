@@ -1,4 +1,3 @@
-#!/usr/bin/env python2
 from __future__ import print_function
 from __future__ import unicode_literals
 from __future__ import division
@@ -7,26 +6,51 @@ from __future__ import absolute_import
 
 import argparse
 from openomni.packet import Packet
+from openomni.message import MessageBuilder
+
+def print_data(args, data=None, raw_string=None):
+    
+    if data:
+        packet = Packet.from_hex(data)
+    else:
+        packet = Packet.from_string(raw_string)
+      
+
+    if packet.is_valid():
+        print(packet)
+        return packet
 
 
 def main(options=None):
     parser = argparse.ArgumentParser(description='Print out structured version of packet (given as a hex string).')
-    parser.add_argument('data', metavar='data', type=str, nargs='+',
+    parser.add_argument('data', metavar='data', type=str, nargs='*',
                         help='data as a hex string')
     parser.add_argument('--json', action='store_true',
                         help='print as json (default: text line)')
+    parser.add_argument('--infile', help='Optional datafile', type=argparse.FileType('r'))
 
     args = parser.parse_args()
-    packet = Packet.from_hex(args.data[0])
 
-    if packet.is_valid():
-        if args.json:
-            print(packet.as_json())
-        else:
-            # compact style:
-            print(packet)
-    else:
-        print("Invalid packet")
+    if not (args.data or args.infile):
+        print("Need either data or infile.")
+        return
+    mb = MessageBuilder()
+    for data in args.data:
+        print_data(args, data=data)
+
+    for line in args.infile:
+        if not line.strip():
+            continue
+        p = print_data(args, raw_string=line.strip())
+        if p:
+            m = mb.add_packet(p)
+        if m:
+            print(len(m.body))
+            print(m.commands())
+
+
+        
+
 
 if __name__ == '__main__':
     main()
