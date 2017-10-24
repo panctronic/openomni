@@ -1,6 +1,7 @@
+import copy
 import crc16
 from packet import Packet, PacketType
-from commands import COMMAND_TYPES, UnknownCommand
+from commands import parse_command
 
 
 class Message(object):
@@ -43,7 +44,7 @@ class Message(object):
                 and self.crc == self.computed_crc_bytes())
 
     def data_for_crc(self):
-        data = self.pod_address.decode('hex')
+        data = self.pod_address.decode("hex")
         data += chr(self.byte9)
         data += chr(len(self.body))
         data += self.body
@@ -57,24 +58,21 @@ class Message(object):
         return chr(crc >> 8) + chr(crc & 0xff)
 
     def commands(self):
-        cmd_idx = 0
+        body = copy.copy(self.body)
         cmds = []
-        while cmd_idx < len(self.body)-1:
-            cmd_type = ord(self.body[cmd_idx])
-            cmd_len = ord(self.body[cmd_idx+1])
-            cmd_class = COMMAND_TYPES.get(cmd_type, UnknownCommand)
-            cmds.append(cmd_class(self.body[cmd_idx+2:cmd_idx+2+cmd_len], cmd_type, cmd_len))
-            cmd_idx += cmd_len + 2
-
+        while body:
+            cmd, body = parse_command(body)
+            cmds.append(cmd)
         return cmds
 
     def packetize(self, start_sequence):
         body_remaining = self.body + self.computed_crc_bytes()
+        sequence_num = start_sequence
         packets = []
         while len(body_remaining) > 0:
             packet = Packet()
             packet.pod_address_1 = self.pod_address
-            packet.sequence = start_sequence + len(packets) * 2
+            packet.sequence = sequence_num
             if len(packets) == 0:
                 packet.packet_type = PacketType.PDM
                 packet.pod_address_2 = self.pod_address
@@ -88,6 +86,10 @@ class Message(object):
                 segment_len = min(Packet.MAX_CON_BODY_SEGMENT_LEN,len(body_remaining))
                 packet.body = body_remaining[:segment_len]
                 body_remaining = body_remaining[segment_len:]
+
+            sequence_num += 2
+            if sequence_num > 31:
+                sequence_num -= 32
 
             packets.append(packet)
 

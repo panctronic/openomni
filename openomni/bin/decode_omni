@@ -22,35 +22,33 @@ def print_data(args, data=None, raw_string=None):
 
 
 def main(options=None):
-    parser = argparse.ArgumentParser(description='Print out structured version of packet (given as a hex string).')
-    parser.add_argument('data', metavar='data', type=str, nargs='*',
-                        help='data as a hex string')
-    parser.add_argument('--json', action='store_true',
-                        help='print as json (default: text line)')
-    parser.add_argument('--infile', help='Optional datafile', type=argparse.FileType('r'))
+    parser = argparse.ArgumentParser(description="Print out structured version of packet (given as a hex string).")
+    parser.add_argument("--infile", type=argparse.FileType("r"),
+            help="Input text-formatted file.")
+    parser.add_argument("data", metavar="data", type=str, nargs="*",
+                        help="data as a hex string")
+    parser.add_argument("--json", action="store_true",
+                        help="print as json (default: text line)")
 
     args = parser.parse_args()
 
-    if not (args.data or args.infile):
-        print("Need either data or infile.")
+    if args.infile:
+        packets = [Packet.from_string(l) for l in args.infile]
+    elif args.data:
+        packets = [Packet.from_hex(x) for x in args.data]
+    else:
+        print("Need either --infile or hex data args.")
         return
-    mb = MessageBuilder()
-    for data in args.data:
-        print_data(args, data=data)
 
-    for line in args.infile:
-        if not line.strip():
-            continue
-        p = print_data(args, raw_string=line.strip())
-        if p:
-            m = mb.add_packet(p)
-        if m:
-            print(len(m.body))
-            print(m.commands())
+    for packet in packets:
+        if packet.is_valid():
+            if args.json:
+                print(packet.as_json())
+            else:
+                # compact style:
+                print(packet)
+        else:
+            print("Invalid packet")
 
-
-        
-
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
